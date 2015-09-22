@@ -1,6 +1,6 @@
 #include "BackGroundLayer.h"
 #include "Global.h"
-
+#include "GameLayer.h"
 USING_NS_CC;
 
 bool BackGroundLayer::init()
@@ -177,7 +177,7 @@ bool BackGroundLayer::init()
 	auto menuItem = MenuItemSprite::create(play, playS, CC_CALLBACK_1(BackGroundLayer::play, this));
 	auto menu = Menu::create(menuItem, nullptr);
 	menu->setPosition(visibleSize.width / 2, visibleSize.height / 2);
-	addChild(menu);
+	addChild(menu,3,"play");
 	return true;
 }
 
@@ -193,6 +193,8 @@ void BackGroundLayer::update(float dt)
 	}
 }
 
-void BackGroundLayer::play(cocos2d::Ref*){
-
+void BackGroundLayer::play(cocos2d::Ref* ref){
+	auto gameLayer = GameLayer::create();
+	addChild(gameLayer);
+	this->removeChildByName("play");
 }

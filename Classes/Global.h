@@ -35,4 +35,10 @@ static const char s_music_15[] = "Sounds/15.wav";
 static const char s_music_16[] = "Sounds/16.wav";
 static const char s_music_19[] = "Sounds/19.wav";
 
+//µÿÕº–≈œ¢
+const int xCount = 12;
+const int yCount = 8;
+const int iconCount = 36;
+const int iconSize = 84;
+
 #endif
