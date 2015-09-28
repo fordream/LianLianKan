@@ -24,18 +24,23 @@ private:
 	void change();
 	void drawMap();
 	void changeMap();
-
+	void drawLine();
+	void clearMatched(float);
+	void gameOver(std::string);
+	void playAgain();
 	//是否是死局
 	bool isDead();
+	//是否已全部消除
+	bool isWin();
 	cocos2d::ProgressTimer *_progress;
 	cocos2d::Label *_numberTime;
 	cocos2d::DrawNode* _draw;
 	cocos2d::Vec2 _prev;
-	int _map[xCount][yCount];// = { { 0 } };
+	cocos2d::Vec2 _cur;
+	int _map[xCount][yCount];
 
 	std::vector<cocos2d::Vec2> _vecExpand1;
 	std::vector<cocos2d::Vec2> _vecExpand2;
-	std::vector<cocos2d::Vec2> _selected;
 	std::vector<cocos2d::Vec2> _path;
 	bool link(cocos2d::Vec2 v1, cocos2d::Vec2 v2);
 	bool linkD(cocos2d::Vec2 v1, cocos2d::Vec2 v2);
@@ -45,5 +50,6 @@ private:
 	cocos2d::Vec2 index2Screen(int x, int y);
 	cocos2d::Vec2 screen2Index(float x, float y);
 	int genSpriteTag(int x, int y);
+	bool isTipable;
 };
 #endif

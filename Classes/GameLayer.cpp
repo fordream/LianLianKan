@@ -1,6 +1,6 @@
 #include "GameLayer.h"
 #include "SimpleAudioEngine.h"
-
+#include "GameScene.h"
 USING_NS_CC;
 bool GameLayer::init()
 {
@@ -8,23 +8,155 @@ bool GameLayer::init()
 		return false;
 	}
 	scheduleOnce(SEL_SCHEDULE(&GameLayer::playBgMusic), 0);
-
+	_prev = Vec2::ZERO;
+	isTipable = true;
+	memset(_map, 0, xCount*yCount*sizeof(int));
 	initUI();
-
 	initMap();
 	return true;
 }
 bool GameLayer::onTouchBegan(cocos2d::Touch* touch, cocos2d::Event* event){ 
-	auto point = touch->getLocation();
-	CCLOG("Location point x=%f, y=%f", point.x, point.y);
 	return true;
 }
 void GameLayer::onTouchMoved(cocos2d::Touch* touch, cocos2d::Event* event){}
-void GameLayer::onTouchEnded(cocos2d::Touch* touch, cocos2d::Event* event){}
+void GameLayer::onTouchEnded(cocos2d::Touch* touch, cocos2d::Event* event){
+	float x = touch->getLocation().x;
+	float y = touch->getLocation().y;
+	//屏幕坐标转换为地图坐标
+	auto point = screen2Index(x, y);
+
+	CCLOG("touch point index x:%d, y:%d", static_cast<int>(point.x), static_cast<int>(point.y));
+
+	//判断连通与否
+	//当前位置有精灵
+	if (_map[(int)point.x][(int)point.y] > 0) {
+		//上一次点击的精灵不是空
+		if (!_prev.equals(Vec2::ZERO)) {
+			CCLOG("compare point x:%d, y:%d", static_cast<int>(point.x), static_cast<int>(point.y));
+			//可以和这次点击的精灵消去
+			if (link(_prev, point)) {
+				CCLOG("path point count :%d", _path.size());
+				int tag = genSpriteTag(point.x, point.y);
+				auto selectedIcon = getChildByTag(tag);
+				selectedIcon->setScale(1.2);
+				selectedIcon->setLocalZOrder(101);
+
+				drawLine();
+			}
+			//不能和这次点击的精灵消去
+			else{
+				//原来的变小
+				int tag = genSpriteTag(_prev.x, _prev.y);
+				auto selectedIcon = getChildByTag(tag);
+				// 恢复原大小
+				selectedIcon->setScale(1.0);
+				// 恢复原Z序
+				selectedIcon->setLocalZOrder(100);
+
+				//当前的变大
+				tag = genSpriteTag(point.x, point.y);
+				selectedIcon = getChildByTag(tag);
+				// 放大1.2倍
+				selectedIcon->setScale(1.2);
+				// Z序提前，放在所有精灵前面
+				selectedIcon->setLocalZOrder(101);
+
+				//原来的等于现在的
+				_prev = point;
+			}
+		}
+		else{
+			CCLOG("add a point");
+			_prev = point;
+			int tag = genSpriteTag(point.x, point.y);
+			auto selectedIcon = getChildByTag(tag);
+			selectedIcon->setScale(1.2);
+			selectedIcon->setLocalZOrder(101);
+		}
+	}
+}
 void GameLayer::onTouchCancelled(cocos2d::Touch* touch, cocos2d::Event* event){}
+void GameLayer::drawLine()
+{
 
+	// 画线
+	if (_path.size() >= 2) {
+		Vec2 *vecs = new Vec2[_path.size()];
+		for (int i = 0; i < _path.size(); i++) {
+			vecs[i] = index2Screen(_path.at(i).x, _path.at(i).y);
+		}
 
-void GameLayer::update(float dt){}
+		// 随机给线条一个颜色
+		auto color = CCRANDOM_0_1();
+
+		// 循环画线段，只有线段可以设置线条宽度
+		for (int i = 0; i < _path.size(); i++) {
+			if (i > 0) {
+				_draw->drawSegment(vecs[i - 1], vecs[i], 5, Color4F(color, color, color, 1));
+			}
+		}
+
+		// 连通的两个图标对应的地图数组置0
+		Vec2 p1 = _path.front();
+		_map[(int)p1.x][(int)p1.y] = 0;
+		Vec2 p2 = _path.back();
+		_map[(int)p2.x][(int)p2.y] = 0;
+
+		// 删掉线段的顶点数组
+		delete[] vecs;
+
+		// 清除连通的图标，同时清除路径点
+		scheduleOnce(SEL_SCHEDULE(&GameLayer::clearMatched), 0.2);
+	}
+}
+
+void GameLayer::clearMatched(float dt)
+{
+	_draw->clear();
+
+	Vec2 p1 = _path.front();
+	Vec2 p2 = _path.back();
+
+	auto x1 = (int)p1.x;
+	auto y1 = (int)p1.y;
+	auto tag1 = genSpriteTag(x1, y1);
+	removeChildByTag(tag1);
+
+	auto x2 = (int)p2.x;
+	auto y2 = (int)p2.y;
+	auto tag2 = genSpriteTag(x2, y2);
+	removeChildByTag(tag2);
+
+	_prev = Vec2::ZERO;
+	_path.clear();
+
+	while (isDead()){
+		changeMap();
+	}
+}
+
+void GameLayer::update(float dt){
+	if (isWin()) {
+		gameOver("You Win!");
+		return;
+	}
+	// 当前进度
+	int current = _progress->getPercentage();
+	// 为零就gameover
+	if (current == 0) {
+		// game over
+		gameOver("Game Over");
+		return;
+	}
+	else{
+		// 减一
+		current--;
+		_progress->setPercentage(current);
+		char time[3];
+		sprintf(time, "%d", current);
+		_numberTime->setString(time);
+	}
+}
 void GameLayer::playBgMusic(float)
 {
 	CocosDenshion::SimpleAudioEngine::getInstance()->playBackgroundMusic(s_music_Back2new, false);
@@ -98,8 +230,24 @@ void GameLayer::initUI(){
 	_prev = Vec2::ZERO;
 	schedule(SEL_SCHEDULE(&GameLayer::update), 1.0);
 }
-void GameLayer::autoClear(cocos2d::Ref*){
-
+void GameLayer::autoClear(cocos2d::Ref* spender){
+	// 左右抖动的动画
+	if (isTipable){
+		isTipable = false;
+		auto rote = RotateBy::create(0.05, 20);
+		auto seq = Sequence::create(rote, rote->reverse(), rote->reverse(), rote->clone(), 
+			CallFunc::create([&]{isTipable = true; }), nullptr);
+		((Sprite*)spender)->runAction(seq);
+		//在isDead函数中，就已经计算出了路径
+		if (isDead()) {
+			CCLOG("die-----");
+			changeMap();
+		}
+		else{
+			drawLine();
+		}
+	}
+	
 }
 
 void GameLayer::initMap()
@@ -173,6 +321,18 @@ void GameLayer::drawMap(){
 	}
 }
 
+bool GameLayer::isWin()
+{
+	for (int x = 0; x < xCount; x++) {
+		for (int y = 0; y < yCount; y++) {
+			if (_map[x][y] != 0) {
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
 bool GameLayer::isDead(){
 	for (int y = 1; y < yCount-1; y++) {
 		for (int x = 1; x < xCount-1; x++) {
@@ -197,6 +357,66 @@ bool GameLayer::isDead(){
 		}
 	}
 	return true;
+}
+
+void GameLayer::gameOver(std::string title)
+{
+
+	auto visibleSize = Director::getInstance()->getVisibleSize();
+	// 停止update函数调度。
+	unschedule(SEL_SCHEDULE(&GameLayer::update));
+
+	// 创建一个颜色层
+	auto layer = LayerColor::create(Color4B(100, 100, 100, 100));
+	// 锚点默认是左下角
+	layer->setPosition(0, 0);
+	addChild(layer, 1000);
+
+	// 对话框背景
+	auto sprite = Sprite::createWithTexture(Director::getInstance()->getTextureCache()->getTextureForKey(s_game_dialog));
+	sprite->setPosition(visibleSize.width / 2, visibleSize.height / 2);
+	layer->addChild(sprite);
+
+	// Game Over 提示
+	auto titleSprite = Label::createWithSystemFont(title, "Thonburi", 35);
+	titleSprite->setPosition(layer->getContentSize().width / 2, sprite->getContentSize().height - 100);
+	titleSprite->setColor(Color3B::RED);
+	layer->addChild(titleSprite);
+
+	// Font Item
+	MenuItemFont::setFontName("fonts/Marker Felt.ttf");
+	// Play Again 按钮
+	auto item1 = MenuItemFont::create("Play Again", CC_CALLBACK_0(GameLayer::playAgain, this));
+	auto color_action = TintBy::create(0.5f, 0, -255, -255);
+	auto color_back = color_action->reverse();
+	auto seq = Sequence::create(color_action, color_back, nullptr);
+	item1->runAction(RepeatForever::create(seq));
+
+	auto menu = Menu::create(item1, nullptr);
+
+	menu->setPosition(layer->getContentSize().width / 2, sprite->getContentSize().height / 2);
+
+	layer->addChild(menu);
+
+	// Game Over层添加触摸事件
+	auto dispatcher = Director::getInstance()->getEventDispatcher();
+	auto listener = EventListenerTouchOneByOne::create();
+	// 吞掉触摸事件，即下面的层不会响应此次触摸
+	listener->setSwallowTouches(true);
+	// Lambda表达式实现触摸函数，空的，因为不需要做触摸实现
+	listener->onTouchBegan = [](Touch*touch, Event* event){return true; };
+	listener->onTouchMoved = [](Touch*touch, Event* event){};
+	listener->onTouchEnded = [](Touch*touch, Event* event){};
+	listener->onTouchCancelled = [](Touch*touch, Event* event){};
+	// 加到GameOver层
+	dispatcher->addEventListenerWithSceneGraphPriority(listener, layer);
+
+}
+
+void GameLayer::playAgain()
+{
+	auto scene = GameScene::create();
+	Director::getInstance()->replaceScene(TransitionRotoZoom::create(1.2, scene));
 }
 
 int GameLayer::genSpriteTag(int x, int y){
@@ -259,8 +479,9 @@ Vec2 GameLayer::index2Screen(int x, int y)
 
 Vec2 GameLayer::screen2Index(float x, float y)
 {
-	int ix = ceil(x / iconSize);
-	int iy = ceil(y / iconSize);
+	int ix = ceil((x - iconSize / 2) / iconSize);
+
+	int iy = ceil((y - iconSize / 2) / iconSize);
 
 	if (ix < xCount && iy < yCount) {
 		return Vec2(ix, iy);

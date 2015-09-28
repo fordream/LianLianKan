@@ -184,8 +184,9 @@ bool BackGroundLayer::init()
 void BackGroundLayer::update(float dt)
 {
 	// 如果海鸥飞出屏幕，就重新设置其位置，重新执行飞的动作
+	//log("x=%f y=%f", _bird->getPositionX(), _bird->getPositionY());
 	Size visibleSize = Director::getInstance()->getVisibleSize();
-	if (_bird->getPosition().y > visibleSize.height + 20) {
+	if (_bird->getPosition().y > visibleSize.height + 10) {
 		auto point = Vec2(CCRANDOM_0_1() * visibleSize.width, 10);
 		_bird->setPosition(point);
 		_bird->runAction(MoveBy::create(floor(5 * CCRANDOM_0_1()), 
